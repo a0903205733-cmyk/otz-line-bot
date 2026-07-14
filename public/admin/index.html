@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OTZ 管理後台</title>
+<style>
+body{font-family:system-ui;margin:0;background:#f4f4f4;color:#222}
+header{background:#111;color:#d4af37;padding:18px 22px;font-size:22px;font-weight:700}
+main{max-width:1200px;margin:auto;padding:18px}.panel{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card{background:#fff;padding:16px;border-radius:12px}
+input,select,button{padding:9px;border-radius:8px;border:1px solid #ccc;font:inherit}button{background:#111;color:#fff;cursor:pointer}
+table{width:100%;border-collapse:collapse}th,td{padding:9px;border-bottom:1px solid #eee;text-align:left}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}table{font-size:12px}}
+</style>
+</head>
+<body>
+<header>OTZ 車隊管理後台 V2</header>
+<main>
+<div class="panel">
+<input id="token" type="password" placeholder="管理密碼">
+<button onclick="loadAll()">登入／更新</button>
+</div>
+<div class="grid">
+<div class="card">待接單<br><b id="pending">0</b></div>
+<div class="card">進行中<br><b id="accepted">0</b></div>
+<div class="card">已完成<br><b id="completed">0</b></div>
+<div class="card">完成營收<br><b id="revenue">$0</b></div>
+</div>
+<div class="panel">
+<h3>司機管理</h3>
+<input id="dname" placeholder="姓名">
+<input id="dphone" placeholder="電話">
+<input id="dplate" placeholder="車牌">
+<button onclick="addDriver()">新增司機</button>
+<div id="drivers"></div>
+</div>
+<div class="panel">
+<h3>訂單</h3>
+<table><thead><tr><th>訂單</th><th>狀態</th><th>路線</th><th>車資</th><th>操作</th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+</main>
+<script>
+let token=localStorage.getItem("otzAdmin")||"";
+document.getElementById("token").value=token;
+let drivers=[];
+
+async function api(url,opt={}){
+  opt.headers={...(opt.headers||{}),"x-admin-token":token};
+  const r=await fetch(url,opt); const d=await r.json();
+  if(!r.ok) throw new Error(d.error||"操作失敗");
+  return d;
+}
+
+async function loadAll(){
+  token=document.getElementById("token").value.trim();
+  localStorage.setItem("otzAdmin",token);
+  drivers=await api("/api/admin/drivers");
+  const orders=await api("/api/admin/orders");
+  renderDrivers(); renderOrders(orders);
+}
+
+function renderDrivers(){
+  document.getElementById("drivers").innerHTML=drivers.map(d=>`${d.name}｜${d.phone||""}｜${d.plate||""}｜${d.status}`).join("<br>");
+}
+
+function renderOrders(orders){
+  pending.textContent=orders.filter(o=>o.status==="pending").length;
+  accepted.textContent=orders.filter(o=>o.status==="accepted").length;
+  completed.textContent=orders.filter(o=>o.status==="completed").length;
+  revenue.textContent="$"+orders.filter(o=>o.status==="completed").reduce((s,o)=>s+Number(o.final_fare||o.estimated_fare||0),0).toLocaleString();
+
+  rows.innerHTML=orders.map(o=>`<tr>
+    <td>OTZ-${String(o.id).padStart(6,"0")}</td>
+    <td>${o.status}</td>
+    <td>${o.pickup} → ${o.destination}</td>
+    <td>${o.final_fare||o.estimated_fare||0}</td>
+    <td>
+      ${o.status==="pending"?`<button onclick="assign(${o.id},${o.estimated_fare||0})">派單</button>`:""}
+      ${o.status==="accepted"?`<button onclick="action(${o.id},'complete')">完成</button>`:""}
+      ${!["completed","cancelled"].includes(o.status)?`<button onclick="action(${o.id},'cancel')">取消</button>`:""}
+    </td>
+  </tr>`).join("");
+}
+
+async function addDriver(){
+  await api("/api/admin/drivers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+    name:dname.value,phone:dphone.value,plate:dplate.value
+  })});
+  loadAll();
+}
+
+async function assign(id,estimate){
+  if(!drivers.length){alert("請先新增司機");return}
+  const choices=drivers.map(d=>`${d.id}:${d.name}`).join("\n");
+  const driverId=prompt("輸入司機ID\n"+choices);
+  if(!driverId)return;
+  const finalFare=prompt("正式車資",estimate);
+  await api(`/api/admin/orders/${id}/assign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+    driverId:Number(driverId),finalFare:Number(finalFare)
+  })});
+  loadAll();
+}
+
+async function action(id,action){
+  await api(`/api/admin/orders/${id}/action`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})});
+  loadAll();
+}
+</script>
+</body>
+</html>
