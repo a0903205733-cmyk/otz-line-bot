@@ -269,6 +269,43 @@ app.post("/api/driver/orders/:id/claim", driverAuth, async (req, res) => {
   }
 });
 
+app.post("/api/driver/orders/:id/action", driverAuth, async (req, res) => {
+  try {
+    const order = await getOrder(Number(req.params.id));
+    const action = req.body.action;
+
+    if (order.status !== "accepted") {
+      return res.status(409).json({ error: "只有已接單訂單可以操作" });
+    }
+
+    let values = {};
+
+    if (action === "start") {
+      values = {
+        started_at: new Date().toISOString()
+      };
+    } else if (action === "complete") {
+      values = {
+        status: "completed",
+        completed_at: new Date().toISOString()
+      };
+    } else {
+      return res.status(400).json({ error: "未知操作" });
+    }
+
+    const updated = await updateOrder(order.id, values);
+
+    if (action === "complete" && order.assigned_driver_id) {
+      await updateDriver(order.assigned_driver_id, { status: "available" });
+    }
+
+    await notifyCustomer(updated, action);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 async function notifyCustomer(order, action) {
   if (!order.customer_line_id) return;
 
@@ -281,6 +318,10 @@ async function notifyCustomer(order, action) {
       `${order.driver_phone ? `電話：${order.driver_phone}\n` : ""}` +
       `${order.driver_plate ? `車牌：${order.driver_plate}\n` : ""}` +
       `確認車資：${order.final_fare || order.estimated_fare} 元`;
+  } else if (action === "start") {
+    text =
+      `🚖 行程已開始\n訂單：${orderNo(order.id)}\n` +
+      `祝您一路平安。`;
   } else if (action === "complete") {
     text =
       `✅ 行程已完成\n訂單：${orderNo(order.id)}\n` +
