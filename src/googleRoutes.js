@@ -1,5 +1,6 @@
 export async function getDrivingRoute(origin, destination, apiKey) {
   if (!apiKey) throw new Error("Missing GOOGLE_MAPS_API_KEY");
+
   const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
     method: "POST",
     headers: {
@@ -16,16 +17,20 @@ export async function getDrivingRoute(origin, destination, apiKey) {
       units: "METRIC"
     })
   });
+
   const raw = await response.text();
   if (!response.ok) throw new Error(`Google Routes API ${response.status}: ${raw}`);
+
   const data = JSON.parse(raw);
   const route = data.routes?.[0];
   if (!route) throw new Error("No route returned");
+
   return {
     distanceKm: route.distanceMeters / 1000,
     durationMinutes: parseFloat(String(route.duration).replace("s", "")) / 60
   };
 }
+
 function normalize(value) {
   const text = String(value).trim();
   return /台灣|臺灣/.test(text) ? text : `${text}, 台灣`;
