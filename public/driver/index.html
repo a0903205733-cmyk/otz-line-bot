@@ -3,86 +3,108 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OTZ 司機端</title>
+<title>OTZ 司機端 V4.2</title>
 <style>
-:root{--bg:#0b0b0c;--panel:#18181b;--line:#333;--gold:#d8b64f;--text:#fff;--green:#1fc76a;--blue:#4b89ff}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui}
+:root{--bg:#0b0b0c;--panel:#18181b;--line:#333;--gold:#d8b64f;--text:#fff;--green:#1fc76a;--blue:#4b89ff;--muted:#aaa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui}
 header{background:#111;color:var(--gold);padding:18px;font-size:22px;font-weight:800}
-main{max-width:760px;margin:auto;padding:16px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
-input,button{font:inherit;border-radius:9px;padding:10px 12px;border:1px solid var(--line)}
-input{background:#242428;color:#fff}
-button{background:var(--gold);color:#111;font-weight:700;cursor:pointer}
-button.gray{background:#3b3b40;color:#fff}
-button.green{background:var(--green);color:#07130c}
-button.blue{background:var(--blue);color:#fff}
-.route{font-size:18px;font-weight:700;margin:10px 0}
-.meta{color:#bbb;line-height:1.7}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.status{display:inline-block;padding:4px 8px;border-radius:999px;background:#333;font-size:12px;margin-left:8px}
+main{max-width:760px;margin:auto;padding:16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+input,select,button{font:inherit;border-radius:9px;padding:10px 12px;border:1px solid var(--line)}
+input,select{background:#242428;color:#fff}button{background:var(--gold);color:#111;font-weight:700;cursor:pointer}
+button.green{background:var(--green)}button.blue{background:var(--blue);color:#fff}button.gray{background:#3b3b40;color:#fff}
+.route{font-size:18px;font-weight:700;margin:10px 0}.meta{color:var(--muted);line-height:1.7}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 </style>
 </head>
 <body>
-<header>OTZ 司機端 V3.1</header>
+<header>OTZ 司機端 V4.2</header>
 <main>
-<section class="card">
-  <input id="token" type="password" placeholder="司機密碼">
-  <button onclick="login()">登入／更新</button>
-  <span id="msg"></span>
+<section id="loginCard" class="card">
+  <input id="username" placeholder="司機帳號">
+  <input id="password" type="password" placeholder="密碼">
+  <button onclick="login()">登入</button>
+  <div id="loginMsg"></div>
 </section>
+
+<section id="profileCard" class="card" style="display:none">
+  <b id="driverName"></b><br>
+  <span id="driverInfo"></span><br><br>
+  <select id="status" onchange="changeStatus()">
+    <option value="available">待命</option>
+    <option value="busy">載客中</option>
+    <option value="offline">離線</option>
+  </select>
+  <button class="gray" onclick="logout()">登出</button>
+</section>
+
 <div id="list"></div>
 </main>
 
 <script>
-let token=localStorage.getItem("otzDriver")||"";
-document.getElementById("token").value=token;
+let authToken=localStorage.getItem("otzDriverJwt")||"";
+let me=null;
 
 async function api(url,opt={}){
-  opt.headers={...(opt.headers||{}),"x-driver-token":token};
-  const response=await fetch(url,opt);
-  const data=await response.json();
-  if(!response.ok) throw new Error(data.error||"操作失敗");
+  opt.headers={...(opt.headers||{})};
+  if(authToken) opt.headers.Authorization=`Bearer ${authToken}`;
+  const r=await fetch(url,opt);
+  const data=await r.json();
+  if(!r.ok) throw new Error(data.error||"操作失敗");
   return data;
 }
 
 async function login(){
-  token=document.getElementById("token").value.trim();
-  localStorage.setItem("otzDriver",token);
-  await refresh();
+  try{
+    const data=await api("/api/driver/login",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        username:username.value.trim(),
+        password:password.value
+      })
+    });
+    authToken=data.token;
+    localStorage.setItem("otzDriverJwt",authToken);
+    await init();
+  }catch(e){loginMsg.textContent=e.message}
+}
+
+async function init(){
+  try{
+    me=await api("/api/driver/me");
+    loginCard.style.display="none";
+    profileCard.style.display="block";
+    driverName.textContent=me.name;
+    driverInfo.textContent=`${me.phone||""}｜${me.plate||""}`;
+    status.value=me.status;
+    await refresh();
+  }catch(e){
+    logout();
+  }
 }
 
 async function refresh(){
   try{
-    msg.textContent="更新中…";
-    const data=await api("/api/driver/orders");
-    list.innerHTML=data.length?data.map(orderCard).join(""):"<div class='card'>目前沒有訂單</div>";
-    msg.textContent="已更新";
-  }catch(error){
-    msg.textContent=error.message;
-  }
+    const orders=await api("/api/driver/orders");
+    list.innerHTML=orders.length?orders.map(card).join(""):"<div class='card'>目前沒有訂單</div>";
+  }catch(e){list.innerHTML=`<div class='card'>${e.message}</div>`}
 }
 
-function orderCard(order){
-  const no="OTZ-"+String(order.id).padStart(6,"0");
-  const accepted=order.status==="accepted";
-  const started=Boolean(order.started_at);
-
+function card(o){
+  const mine=Number(o.assigned_driver_id)===Number(me.id);
   return `<section class="card">
-    <strong>${no}</strong>
-    <span class="status">${order.status==="pending"?"待接單":"已接單"}</span>
-    <div class="route">${esc(order.pickup)} → ${esc(order.destination)}</div>
+    <b>OTZ-${String(o.id).padStart(6,"0")}</b>
+    <div class="route">${esc(o.pickup)} → ${esc(o.destination)}</div>
     <div class="meta">
-      預約：${esc(order.ride_time||"未提供")}<br>
-      人數：${order.passengers||"未提供"} 位<br>
-      車資：${order.final_fare||order.estimated_fare||0} 元
+      預約：${esc(o.ride_time||"未提供")}<br>
+      人數：${o.passengers||"未提供"} 位<br>
+      車資：${o.final_fare||o.estimated_fare||0} 元
     </div>
     <div class="actions">
-      ${order.status==="pending"?`<button onclick="claim(${order.id})">我要接單</button>`:""}
-      ${accepted&&!started?`<button class="blue" onclick="action(${order.id},'start')">開始行程</button>`:""}
-      ${accepted?`<button class="green" onclick="action(${order.id},'complete')">完成訂單</button>`:""}
-      <button class="gray" onclick="navigateTo('${encodeURIComponent(order.pickup)}')">導航上車</button>
-      <button class="gray" onclick="navigateTo('${encodeURIComponent(order.destination)}')">導航目的地</button>
+      ${o.status==="pending"?`<button onclick="claim(${o.id})">我要接單</button>`:""}
+      ${mine&&o.status==="accepted"&&!o.started_at?`<button class="blue" onclick="action(${o.id},'start')">開始行程</button>`:""}
+      ${mine&&o.status==="accepted"?`<button class="green" onclick="action(${o.id},'complete')">完成訂單</button>`:""}
+      <button class="gray" onclick="nav('${encodeURIComponent(o.pickup)}')">導航上車</button>
+      <button class="gray" onclick="nav('${encodeURIComponent(o.destination)}')">導航目的地</button>
     </div>
   </section>`;
 }
@@ -91,33 +113,49 @@ async function claim(id){
   try{
     await api(`/api/driver/orders/${id}/claim`,{method:"POST"});
     await refresh();
-  }catch(error){alert(error.message)}
+  }catch(e){alert(e.message)}
 }
 
 async function action(id,actionName){
-  if(actionName==="complete"&&!confirm("確定完成這筆訂單？")) return;
-
+  if(actionName==="complete"&&!confirm("確定完成訂單？"))return;
   try{
     await api(`/api/driver/orders/${id}/action`,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({action:actionName})
     });
-    await refresh();
-  }catch(error){alert(error.message)}
+    await init();
+  }catch(e){alert(e.message)}
 }
 
-function navigateTo(place){
+async function changeStatus(){
+  try{
+    await api("/api/driver/status",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({status:status.value})
+    });
+    await init();
+  }catch(e){alert(e.message)}
+}
+
+function logout(){
+  localStorage.removeItem("otzDriverJwt");
+  authToken="";
+  me=null;
+  loginCard.style.display="block";
+  profileCard.style.display="none";
+  list.innerHTML="";
+}
+
+function nav(place){
   window.open(`https://www.google.com/maps/search/?api=1&query=${place}`,"_blank");
 }
 
-function esc(value){
-  return String(value??"").replace(/[&<>"']/g,char=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-  }[char]));
-}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 
-if(token)refresh();
+setInterval(()=>{if(authToken)refresh()},5000);
+if(authToken)init();
 </script>
 </body>
 </html>

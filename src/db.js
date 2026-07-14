@@ -47,3 +47,26 @@ export async function updateDriver(id, values) {
   if (error) throw error;
   return data;
 }
+
+
+export async function getDriverByUsername(username) {
+  const { data, error } = await db
+    .from("drivers")
+    .select("*")
+    .ilike("username", username)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getDriverById(id) {
+  const { data, error } = await db
+    .from("drivers")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}

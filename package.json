@@ -1,6 +1,6 @@
 {
-  "name": "otz-taxi-v3-1",
-  "version": "3.1.0",
+  "name": "otz-taxi-v4-2",
+  "version": "4.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,8 @@
     "@line/bot-sdk": "^9.5.0",
     "@supabase/supabase-js": "^2.49.1",
     "dotenv": "^16.4.5",
-    "express": "^4.21.1"
+    "express": "^4.21.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
   }
 }

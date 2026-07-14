@@ -1,14 +1,25 @@
-# OTZ 車隊 V3.1
+# OTZ 車隊 V4.2｜司機獨立帳號
 
-修正內容：
-- 司機端新增「開始行程」
-- 司機端新增「完成訂單」
-- 完成後訂單改為 completed
-- 完成後司機狀態恢復 available
-- 開始與完成時自動通知客人
+新增：
+- 每位司機獨立帳號與密碼
+- 密碼使用 bcrypt 雜湊
+- JWT 登入，7 天有效
+- 管理員建立、停用、啟用司機帳號
+- 司機只能操作自己的已接訂單
+- 司機可切換待命／載客中／離線
+- 接單、開始行程、完成訂單
+- 司機端每 5 秒自動更新
 
 部署：
-1. 將本版本覆蓋 GitHub 根目錄
-2. Railway 自動重新部署
-3. 司機端網址：
-   https://你的Railway網址/driver/
+1. Supabase SQL Editor 執行：
+   database/upgrade_v4_2.sql
+2. Railway 新增：
+   JWT_SECRET=至少32字元隨機字串
+3. 覆蓋 GitHub 根目錄檔案
+4. 等 Railway 重新部署
+5. 管理後台建立司機帳號
+6. 司機從 /driver/ 使用帳號密碼登入
+
+網址：
+- 管理後台：https://你的Railway網址/admin/
+- 司機端：https://你的Railway網址/driver/
