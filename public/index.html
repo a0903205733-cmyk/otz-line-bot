@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OTZ 車隊管理後台</title>
+<style>
+body{font-family:system-ui;margin:0;background:#f5f5f5;color:#222}
+header{background:#111;color:#d4af37;padding:18px 22px;font-size:22px;font-weight:700}
+main{max-width:1180px;margin:auto;padding:18px}
+.panel{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px #0001}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stat b{display:block;font-size:28px}
+input,button{padding:9px;border-radius:8px;border:1px solid #ccc;font:inherit}
+button{background:#111;color:#fff;cursor:pointer}.danger{background:#a00}.muted{background:#666}
+table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #eee;text-align:left}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}.mobile-hide{display:none}table{font-size:13px}}
+</style>
+</head>
+<body>
+<header>OTZ 車隊管理後台</header>
+<main>
+<div class="panel">
+<input id="token" type="password" placeholder="管理密碼">
+<button onclick="loadOrders()">登入／重新整理</button>
+<span id="msg"></span>
+</div>
+<div class="panel stats">
+<div class="stat">待接單<b id="pending">0</b></div>
+<div class="stat">進行中<b id="accepted">0</b></div>
+<div class="stat">已完成<b id="completed">0</b></div>
+<div class="stat">完成營收<b id="revenue">$0</b></div>
+</div>
+<div class="panel">
+<table><thead><tr><th>訂單</th><th>狀態</th><th>路線</th><th class="mobile-hide">時間</th><th>車資</th><th>操作</th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+</main>
+<script>
+let token=localStorage.getItem("otzToken")||"";
+document.getElementById("token").value=token;
+const labels={awaiting_customer:"待客人確認",pending:"待接單",accepted:"進行中",completed:"已完成",cancelled:"已取消"};
+
+async function loadOrders(){
+  token=document.getElementById("token").value.trim();
+  localStorage.setItem("otzToken",token);
+  const r=await fetch("/api/orders",{headers:{"x-admin-token":token}});
+  if(!r.ok){msg.textContent=" 登入失敗";return}
+  const orders=await r.json();
+  msg.textContent=" 已更新";
+  render(orders);
+}
+
+function render(orders){
+  pending.textContent=orders.filter(o=>o.status==="pending").length;
+  accepted.textContent=orders.filter(o=>o.status==="accepted").length;
+  completed.textContent=orders.filter(o=>o.status==="completed").length;
+  revenue.textContent="$"+orders.filter(o=>o.status==="completed")
+    .reduce((s,o)=>s+Number(o.final_fare||o.estimated_fare||0),0).toLocaleString();
+
+  rows.innerHTML=orders.map(o=>`<tr>
+    <td>OTZ-${String(o.id).padStart(6,"0")}</td>
+    <td>${labels[o.status]||o.status}</td>
+    <td>${esc(o.pickup)} → ${esc(o.destination)}${o.in_service_area?"":"<br><small style='color:#b00020'>服務區外</small>"}</td>
+    <td class="mobile-hide">${esc(o.ride_time||"未提供")}</td>
+    <td>${o.final_fare||o.estimated_fare||0} 元</td>
+    <td><div class="actions">
+      ${o.status==="pending"?`<button onclick="accept(${o.id},${o.estimated_fare||0})">接單</button>`:""}
+      ${o.status==="accepted"?`<button onclick="act(${o.id},'complete')">完成</button>`:""}
+      ${!["completed","cancelled"].includes(o.status)?`<button class="danger" onclick="act(${o.id},'cancel')">取消</button>`:""}
+      <button class="muted" onclick="nav('${encodeURIComponent(o.pickup)}')">導航</button>
+    </div></td>
+  </tr>`).join("");
+}
+
+async function accept(id,estimate){
+  const v=prompt("確認最終車資",estimate);
+  if(v===null)return;
+  await post(id,{action:"accept",finalFare:Number(v)});
+}
+async function act(id,action){
+  if(confirm("確定執行？"))await post(id,{action});
+}
+async function post(id,body){
+  const r=await fetch(`/api/orders/${id}`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-admin-token":token},
+    body:JSON.stringify(body)
+  });
+  const d=await r.json();
+  if(!r.ok){alert(d.error||"操作失敗");return}
+  loadOrders();
+}
+function nav(place){
+  window.open(`https://www.google.com/maps/search/?api=1&query=${place}`,"_blank")
+}
+function esc(v){
+  return String(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))
+}
+</script>
+</body>
+</html>

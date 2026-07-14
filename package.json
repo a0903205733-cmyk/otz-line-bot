@@ -1,6 +1,6 @@
 {
-  "name": "otz-line-bot-v3",
-  "version": "3.0.0",
+  "name": "otz-taxi-final",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
