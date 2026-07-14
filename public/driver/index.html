@@ -1,1 +1,91 @@
-<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OTZ 司機端</title><body><h1>OTZ 司機端</h1><input id="t" type="password" placeholder="司機密碼"><button onclick="load()">登入</button><div id="o"></div><script>async function load(){const r=await fetch('/api/driver/orders',{headers:{'x-driver-token':t.value}});const d=await r.json();o.innerHTML=Array.isArray(d)?d.map(x=>`<p>OTZ-${String(x.id).padStart(6,'0')} ${x.pickup}→${x.destination} <button onclick="claim(${x.id})">接單</button></p>`).join(''):JSON.stringify(d)}async function claim(id){await fetch('/api/driver/orders/'+id+'/claim',{method:'POST',headers:{'x-driver-token':t.value}});load()}</script>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OTZ 司機端</title>
+<style>
+body{margin:0;background:#0b0b0c;color:#fff;font-family:system-ui}
+header{background:#111;color:#d8b64f;padding:18px;font-size:22px;font-weight:800}
+main{max-width:760px;margin:auto;padding:16px}
+.card{background:#18181b;border:1px solid #333;border-radius:14px;padding:16px;margin-bottom:12px}
+input,button{font:inherit;border-radius:9px;padding:10px 12px;border:1px solid #333}
+input{background:#242428;color:#fff}
+button{background:#d8b64f;color:#111;font-weight:700}
+button.gray{background:#3b3b40;color:#fff}
+.route{font-size:18px;font-weight:700;margin:10px 0}
+</style>
+</head>
+<body>
+<header>OTZ 司機端</header>
+<main>
+<section class="card">
+  <input id="token" type="password" placeholder="司機密碼">
+  <button onclick="login()">登入／更新</button>
+</section>
+<div id="list"></div>
+</main>
+<script>
+let token=localStorage.getItem("otzDriver")||"";
+document.getElementById("token").value=token;
+
+async function login(){
+  token=document.getElementById("token").value.trim();
+  localStorage.setItem("otzDriver",token);
+  await refresh();
+}
+
+async function refresh(){
+  const response=await fetch("/api/driver/orders",{
+    headers:{"x-driver-token":token}
+  });
+
+  const data=await response.json();
+
+  if(!response.ok){
+    alert(data.error||"登入失敗");
+    return;
+  }
+
+  list.innerHTML=data.length?data.map(orderCard).join(""):"<div class='card'>目前沒有訂單</div>";
+}
+
+function orderCard(order){
+  const no="OTZ-"+String(order.id).padStart(6,"0");
+
+  return `<section class="card">
+    <strong>${no}</strong>
+    <div class="route">${order.pickup} → ${order.destination}</div>
+    <div>${order.ride_time||"未提供"}｜${order.estimated_fare||0} 元</div>
+    <div style="margin-top:12px">
+      ${order.status==="pending"?`<button onclick="claim(${order.id})">我要接單</button>`:"已接單"}
+      <button class="gray" onclick="navigateTo('${encodeURIComponent(order.pickup)}')">導航上車</button>
+      <button class="gray" onclick="navigateTo('${encodeURIComponent(order.destination)}')">導航目的地</button>
+    </div>
+  </section>`;
+}
+
+async function claim(id){
+  const response=await fetch(`/api/driver/orders/${id}/claim`,{
+    method:"POST",
+    headers:{"x-driver-token":token}
+  });
+
+  const data=await response.json();
+
+  if(!response.ok){
+    alert(data.error||"接單失敗");
+    return;
+  }
+
+  await refresh();
+}
+
+function navigateTo(place){
+  window.open(`https://www.google.com/maps/search/?api=1&query=${place}`,"_blank");
+}
+
+if(token)refresh();
+</script>
+</body>
+</html>

@@ -1,21 +1,41 @@
-# OTZ 車隊 V2.2 正式管理後台
+# OTZ 車隊 V3 正式營運版
 
-新增：
-- 黑金正式管理介面
-- 訂單卡片
-- 狀態分類
-- 搜尋
-- 司機篩選
-- 今日完成與今日營收
-- 每 15 秒自動更新
-- 派單、完成、取消
-- 上車與目的地導航
+這是一個乾淨、單一版本的專案，包含：
 
-部署：
-1. 覆蓋 GitHub 根目錄檔案
-2. Railway 自動重新部署
-3. 後台網址：
-   https://你的Railway網址/admin/
-4. 使用 Railway 的 ADMIN_TOKEN 登入
+- LINE Webhook
+- Google Routes API
+- Supabase 訂單資料庫
+- LINE Flex Message
+- 管理後台
+- 司機端
+- 派單、接單、完成、取消
+- LINE 自動通知客人
+- 黑金 OTZ 介面
+- 搜尋、篩選、今日營收、自動更新
 
-此版本保留 V2.1 的 LINE Webhook，不會影響既有叫車功能。
+部署順序：
+
+1. Supabase 執行：
+   `database/upgrade_v3.sql`
+2. GitHub 根目錄只保留：
+   - package.json
+   - src/
+   - public/
+   - database/
+   - README.md
+   - .env.example
+3. Railway 重新部署
+4. Webhook：
+   `https://你的Railway網址/webhook`
+5. 管理後台：
+   `https://你的Railway網址/admin/`
+6. 司機端：
+   `https://你的Railway網址/driver/`
+
+建議刪除 GitHub 根目錄舊檔：
+- server.js
+- parser.js
+- fare.js
+- index.html
+- otz-line-bot-starter/
+- 其他重複版本資料夾

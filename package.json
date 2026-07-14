@@ -1,6 +1,6 @@
 {
-  "name": "otz-taxi-v2-2",
-  "version": "2.2.0",
+  "name": "otz-taxi-v3",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "scripts": {
